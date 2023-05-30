@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Canvas Fit Demo</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@700&display=swap');
+        * {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        .blueprint-bg {
+            background: radial-gradient(#3057E1, #002082);
+            display: grid;
+            grid-template-rows: 200px auto;
+            height: 100vh;
+            width: 100vw;
+            color: #CED8F7;
+            font-family: 'Caveat', cursive;
+            font-size: 1.5em;
+        }
+        .blueprint-controls {
+            display: grid;
+            grid-template-rows: 60px auto;
+            text-align: center;
+        }
+        .title {
+            font-size: 2em;
+        }
+        .buttons {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+        }
+        .button {
+            border: 1px dashed rgba(206, 216, 247, 0.4);
+            border-radius: 50px;
+        }
+        .button:hover {
+            border: 1px solid rgba(206, 216, 247, 1);
+        }
+        .selected {
+            background: 
+                repeating-linear-gradient(120deg, rgba(206, 216, 247, 0.2), rgba(206, 216, 247, 0.2) 1px, transparent 1px, transparent 3px);
+        }
+        .blueprint-field {
+            margin: 20px;
+            border: 3px solid rgba(206, 216, 247, 0.4);
+            background: 
+                repeating-linear-gradient(to right, rgba(206, 216, 247, 0.4), rgba(206, 216, 247, 0.4) 1px, transparent 1px, transparent 40px),
+                repeating-linear-gradient(to bottom, rgba(206, 216, 247, 0.4), rgba(206, 216, 247, 0.4) 1px, transparent 1px, transparent 40px);
+        }
+        .main {
+            margin: -3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="blueprint-bg">
+        <div class="blueprint-controls">
+            <div class="title">
+                Canvas Image Fit Demo 
+            </div>
+            <div class="controls">
+                <p>Click on the canvas below to place area where the image will be displayed</p><br>
+                <div class="buttons">
+                    <div>Image size:</div>
+                    <div class="button selected" id="b-1" onclick="imageChange(1);">Small (100x41 px)</div>
+                    <div class="button" id="b-2" onclick="imageChange(2);">Medium (800x325 px)</div>
+                    <div class="button" id="b-3" onclick="imageChange(3);">Large (2016x818 px)</div>
+                </div>
+                <div class="buttons">
+                    <div>Render processor:</div>
+                    <div class="button selected" id="r-1" onclick="renderChange(1);">Auto</div>
+                    <div class="button" id="r-2" onclick="renderChange(2);">CPU</div>
+                    <div class="button" id="r-3" onclick="renderChange(3);">GPU</div>
+                </div>
+            </div>
+        </div>
+        <div class="blueprint-field" id="bp" onclick="pointDraw(event);" onmousemove="traceMouse(event);">
+            <canvas class="main" id="render-target"></canvas>
+        </div>
+    </div>
+    
+    <script src="https://unpkg.com/gpu.js@latest/dist/gpu-browser.min.js"></script>
+    <script src="./canvas-fit.js"></script>
+    <script>
+        const target = document.getElementById("render-target");
+        var context;
+
+        window.onload = function() {
+            const bp = document.getElementById("bp");
+            target.width = bp.offsetWidth;
+            target.height = bp.offsetHeight;
+
+            context = target.getContext("2d");
+
+            images.small.src = "./images/krill-small.jpg";
+            images.medium.src = "./images/krill-medium.jpg";
+            images.large.src = "./images/krill-large.jpg";
+        }
+
+        const images = {
+            small: new Image(),
+            medium: new Image(),
+            large: new Image()
+        }
+        var selectedimage = images.small;
+        function imageChange(selected) {
+            for(var i = 1; i < 4; i++) {
+                const elem = document.getElementById(`b-${i}`);
+                if (i == selected) {
+                    elem.className = "button selected";
+                } else {
+                    elem.className = "button";
+                }
+            }
+            switch(selected) {
+                case 1:
+                    selectedimage = images.small;
+                    break;
+                case 2:
+                    selectedimage = images.medium;
+                    break;
+                case 3:
+                    selectedimage = images.large;
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        var selectedrender = 1;
+        function renderChange(selected) {
+            for(var i = 1; i < 4; i++) {
+                const elem = document.getElementById(`r-${i}`);
+                if (i == selected) {
+                    elem.className = "button selected";
+                } else {
+                    elem.className = "button";
+                }
+            }
+            selectedrender = selected;
+        }
+
+        const points = [];
+        function pointDraw(e) {
+            points.push([e.clientX - 20, e.clientY - 220]);
+            displayPoints();
+        }
+
+        function displayPoints() {
+            context.clearRect(0, 0, target.width, target.height);
+            if (points.length == 4) {
+                //draw image
+                switch(selectedrender) {
+                    case 1:
+                        context.fitImage(selectedimage, ...points[0], ...points[1], ...points[2], ...points[3]);
+                        break;
+                    case 2:
+                        context.fitImageCPU(selectedimage, ...points[0], ...points[1], ...points[2], ...points[3]);
+                        break;
+                    case 3:
+                        const gpu = new GPU();
+                        context.fitImageGPU(gpu, selectedimage, ...points[0], ...points[1], ...points[2], ...points[3]);
+                        break;
+                    default:
+                        break;
+                }
+                points.length = 0;
+            } else {
+                //display current points
+                context.fillStyle = "rgba(206, 216, 247, 1)";
+                context.strokeStyle = context.fillStyle;
+                context.lineWidth = 1;
+                context.fillRect(points[0][0] - 2, points[0][1] - 2, 4, 4);
+                for (var i = 1; i < points.length; i++) {
+                    context.beginPath();
+                    context.moveTo(points[0][0], points[0][1]);
+                    context.lineTo(points[i][0], points[i][1]);
+                    context.closePath();
+                    context.stroke();
+                    context.fillRect(points[i][0] - 2, points[i][1] - 2, 4, 4);
+                }
+            }
+        }
+
+        function traceMouse(e) {
+            if(points.length > 0) {
+                context.clearRect(0, 0, target.width, target.height);
+                displayPoints();
+                context.save();
+                context.strokeStyle = "rgba(206, 216, 247, 1)";
+                context.lineWidth = 1;
+                context.setLineDash([5, 5]);
+                if(points.length == 3) {
+                    //trace two lines from two middle points
+                    context.beginPath();
+                    context.moveTo(points[1][0], points[1][1]);
+                    context.lineTo(e.clientX - 20, e.clientY - 220);
+                    context.stroke();
+                    context.beginPath();
+                    context.moveTo(points[2][0], points[2][1]);
+                    context.lineTo(e.clientX - 20, e.clientY - 220);
+                    context.stroke();
+                } else {
+                    //trace line to mouse position from starting point
+                    context.beginPath();
+                    context.moveTo(points[0][0], points[0][1]);
+                    context.lineTo(e.clientX - 20, e.clientY - 220);
+                    context.stroke();
+                }
+                context.restore();
+            }
+        }
+    </script>
+</body>
+</html>
